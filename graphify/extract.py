@@ -6950,7 +6950,9 @@ def _extract_single_file(args: tuple) -> tuple[int, dict]:
     # (e.g. a transient batch/parallel hiccup). Caching it makes the empty
     # byte-stable across runs and silently blinds affected/explain to and
     # through the file (#1666); skipping the write lets a rerun self-heal.
-    if not bypass_cache and "error" not in result and result.get("nodes"):
+    # An intentional decline or virtual workspace root (result.get("skipped"))
+    # is cached so repeat runs do not re-extract and re-report it (#3910).
+    if not bypass_cache and "error" not in result and (result.get("nodes") or result.get("skipped")):
         save_cached(path, result, root, cache_root=cache_location)
     return idx, result
 
@@ -7152,8 +7154,9 @@ def _extract_sequential(
         bypass_cache = path.suffix in _JS_CACHE_BYPASS_SUFFIXES
         # XAML boundary anchors on `root` (the corpus), not the cache location.
         result = _safe_extract_with_xaml_root(extractor, path, root)
-        # See _extract_single_file: don't cache an anomalous zero-node result (#1666).
-        if not bypass_cache and "error" not in result and result.get("nodes"):
+        # See _extract_single_file: don't cache an anomalous zero-node result (#1666),
+        # but cache intentional declines/virtual manifests carrying `skipped` (#3910).
+        if not bypass_cache and "error" not in result and (result.get("nodes") or result.get("skipped")):
             save_cached(path, result, root, cache_root=cache_location)
         per_file[idx] = result
     if total_files >= _PROGRESS_INTERVAL:

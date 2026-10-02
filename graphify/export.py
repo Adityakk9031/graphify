@@ -192,11 +192,21 @@ def attach_hyperedges(G: nx.Graph, hyperedges: list) -> None:
     # `h["id"]` here raised `KeyError: 'id'` on every incremental re-extract,
     # symmetric with the `.get("id")` guard the loop below already applies to the
     # incoming set.
-    seen_ids = {h["id"] for h in existing if h.get("id")}
+    # Deduplicate by (id, source_file) when source_file is present (#3981), so that
+    # hyperedges with the same ID from different source files do not overwrite or
+    # drop each other.
+    def _key(h: dict) -> tuple[str, str | None] | str:
+        hid = h.get("id")
+        sf = h.get("source_file")
+        return (hid, sf) if sf else hid
+
+    seen_keys = {_key(h) for h in existing if h.get("id")}
     for h in hyperedges:
-        if h.get("id") and h["id"] not in seen_ids:
-            existing.append(h)
-            seen_ids.add(h["id"])
+        if h.get("id"):
+            k = _key(h)
+            if k not in seen_keys:
+                existing.append(h)
+                seen_keys.add(k)
     G.graph["hyperedges"] = existing
 
 

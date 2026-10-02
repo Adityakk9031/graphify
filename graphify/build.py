@@ -2138,11 +2138,16 @@ def build_merge(
     carried_hyperedges: list[dict] = []
     if existing_hyperedges:
         carried = carried_hyperedges
-        _new_hyperedge_ids = {
-            he.get("id")
+        _new_hyperedges = [
+            he
             for chunk in new_chunks
             for he in (chunk.get("hyperedges") or [])
             if isinstance(he, dict) and he.get("id")
+        ]
+        _new_hyperedge_keys = {
+            (he["id"], _norm_source_file(he.get("source_file"), _eff_root))
+            if he.get("source_file") else he["id"]
+            for he in _new_hyperedges
         }
         for he in existing_hyperedges:
             if not isinstance(he, dict):
@@ -2156,7 +2161,10 @@ def build_merge(
                 continue  # semantically re-extracted — replaced by the new chunk's version
             if _prune_match(sf):
                 continue  # deleted — pruned
-            if he.get("id") and he.get("id") in _new_hyperedge_ids:
+            # Identity is (id, source_file) so re-extracting one file doesn't
+            # silently drop another document's hyperedge with the same id (#3981).
+            he_key = (he["id"], norm) if sf else he.get("id")
+            if he.get("id") and (he_key in _new_hyperedge_keys or (not sf and he["id"] in _new_hyperedge_keys)):
                 continue  # the new chunks re-emitted it — theirs wins
             carried.append(he)
 

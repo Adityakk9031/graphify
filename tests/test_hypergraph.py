@@ -171,6 +171,20 @@ def test_attach_hyperedges_treats_empty_id_as_id_less():
     assert len(G.graph["hyperedges"]) == 2
 
 
+def test_attach_hyperedges_allows_same_id_different_source_file():
+    """#3981: Two hyperedges with the same id from different source files must
+    both be preserved, not dropped by seen_ids."""
+    G = nx.Graph()
+    h_a = {"id": "shared_flow", "label": "Flow A", "nodes": ["A1", "A2"], "source_file": "a.md"}
+    h_b = {"id": "shared_flow", "label": "Flow B", "nodes": ["B1", "B2"], "source_file": "b.md"}
+    attach_hyperedges(G, [h_a])
+    attach_hyperedges(G, [h_b])
+    assert len(G.graph["hyperedges"]) == 2
+    # But re-attaching the same (id, source_file) deduplicates
+    attach_hyperedges(G, [h_a])
+    assert len(G.graph["hyperedges"]) == 2
+
+
 # ---------------------------------------------------------------------------
 # 3. to_json includes hyperedges key
 # ---------------------------------------------------------------------------

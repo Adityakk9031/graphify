@@ -299,3 +299,37 @@ def test_graphify_root_marker_with_a_utf8_bom_still_resolves(tmp_path):
     resolved = _infer_merge_root(graph_path)
     assert resolved == str(real_root.resolve())
     assert "﻿" not in (resolved or "")
+
+
+def test_build_merge_preserves_same_id_hyperedge_from_untouched_file(tmp_path):
+    """#3981: Re-extracting one doc must not silently drop another doc's
+    hyperedge when both share the same hyperedge id."""
+    root = tmp_path / "corpus"
+    root.mkdir()
+    graph_path = tmp_path / "graph.json"
+    nodes = [
+        {"id": "a1", "label": "a1", "file_type": "document", "source_file": "a.md"},
+        {"id": "b1", "label": "b1", "file_type": "document", "source_file": "b.md"},
+    ]
+    hyperedges = [
+        {"id": "shared_flow", "label": "Flow in a.md", "source_file": "a.md", "nodes": ["a1"]},
+        {"id": "shared_flow", "label": "Flow in b.md", "source_file": "b.md", "nodes": ["b1"]},
+    ]
+    _write_graph(graph_path, nodes, [], hyperedges)
+
+    # Re-extract only b.md with the same shared_flow hyperedge id
+    new_chunk = {
+        "nodes": [{"id": "b1", "label": "b1", "file_type": "document", "source_file": "b.md"}],
+        "edges": [],
+        "hyperedges": [{"id": "shared_flow", "label": "Flow in b.md v2", "source_file": "b.md", "nodes": ["b1"]}],
+    }
+    G = build_merge([new_chunk], graph_path, dedup=False, root=root)
+    hes = G.graph.get("hyperedges", [])
+    # Both hyperedges should be present: a.md's carried one and b.md's new one
+    assert len(hes) == 2
+    sources = {h["source_file"] for h in hes}
+    assert sources == {"a.md", "b.md"}
+    labels = {h["label"] for h in hes}
+    assert "Flow in a.md" in labels
+    assert "Flow in b.md v2" in labels
+

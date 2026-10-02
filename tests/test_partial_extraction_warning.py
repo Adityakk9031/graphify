@@ -141,3 +141,21 @@ def test_warning_suppressed_via_env(tmp_path, capsys, monkeypatch):
     err = capsys.readouterr().err
     assert "partially extracted" not in err
     assert "syntax errors" not in err
+
+
+def test_warning_suppressed_with_root_none_or_str(tmp_path, capsys, monkeypatch):
+    """Ensure extract() handles root=None or root as a string without crashing when syntax error files exist."""
+    monkeypatch.chdir(tmp_path)
+    fixture = _partial_parse_fixture(tmp_path)
+    allow = tmp_path / ".graphifyallow"
+    allow.write_text("broken.lua\n", encoding="utf-8")
+
+    # root as string
+    res_str = extract([fixture], root=str(tmp_path))
+    err_str = capsys.readouterr().err
+    assert "partially extracted" not in err_str
+
+    # root as None (anchors at cwd)
+    res_none = extract([fixture], root=None)
+    err_none = capsys.readouterr().err
+    assert "partially extracted" not in err_none

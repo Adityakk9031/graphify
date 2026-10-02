@@ -7165,8 +7165,12 @@ def _extract_sequential(
 _PARALLEL_THRESHOLD = 20
 
 
-def _load_warning_ignore_patterns(root: Path) -> list[tuple[Path, str]]:
+def _load_warning_ignore_patterns(root: Path | str | None) -> list[tuple[Path, str]]:
     """Read .graphifyallow / .graphifywarnignore files and return (anchor_dir, pattern) pairs (#3912)."""
+    if root is None:
+        root = Path(".")
+    elif isinstance(root, str):
+        root = Path(root)
     from graphify.detect import _parse_gitignore_line, _read_ignore_text
     patterns: list[tuple[Path, str]] = []
     root = root.resolve()
@@ -7184,13 +7188,19 @@ def _load_warning_ignore_patterns(root: Path) -> list[tuple[Path, str]]:
 
 
 def _is_warning_suppressed(
-    path: Path,
-    root: Path,
+    path: Path | str,
+    root: Path | str | None,
     patterns: list[tuple[Path, str]],
 ) -> bool:
     """Return True if path matches any warning suppression pattern (#3912)."""
     if not patterns:
         return False
+    if root is None:
+        root = Path(".")
+    elif isinstance(root, str):
+        root = Path(root)
+    if isinstance(path, str):
+        path = Path(path)
     from graphify.detect import _is_ignored
     try:
         return _is_ignored(path.resolve(), root.resolve(), patterns)
@@ -7537,19 +7547,20 @@ def extract(
             _syntax_error_files = []
         else:
             _warning_suppress_patterns: list[tuple[Path, str]] = []
+            effective_root = Path(root) if root is not None else Path(".")
             if isinstance(suppress_syntax_warnings, (list, tuple, set)):
                 from graphify.detect import _parse_gitignore_line
                 for pat in suppress_syntax_warnings:
                     line = _parse_gitignore_line(str(pat))
                     if line:
-                        _warning_suppress_patterns.append((root, line))
+                        _warning_suppress_patterns.append((effective_root, line))
             else:
-                _warning_suppress_patterns = _load_warning_ignore_patterns(root)
+                _warning_suppress_patterns = _load_warning_ignore_patterns(effective_root)
             if _warning_suppress_patterns:
                 _syntax_error_files = [
                     (rel, line, kept)
                     for (rel, line, kept, p) in _syntax_error_files
-                    if not _is_warning_suppressed(p, root, _warning_suppress_patterns)
+                    if not _is_warning_suppressed(p, effective_root, _warning_suppress_patterns)
                 ]
             else:
                 _syntax_error_files = [
